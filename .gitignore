@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Claude Code memory
+.claude/
+
+# Temporary/lock files
+uv.lock
+~$*.xlsx
+
+# Source spreadsheets (data is in data.py)
+*.xlsx
+
+# Screenshots
+*.JPG
+*.jpg
+*.PNG
+*.png
