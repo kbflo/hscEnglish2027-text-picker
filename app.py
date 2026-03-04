@@ -1352,7 +1352,16 @@ else:
 # FOOTER
 # =============================================================================
 st.markdown("---")
-st.caption(
+st.markdown(
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">'
+    '<span style="color:#9ca3af!important;font-size:0.75rem;flex:1;">'
     "Data source: NESA HSC English Prescriptions 2027–2030 (D2025/464194, © 2026 NSW Education Standards Authority). "
     "This tool is unofficial and provided for planning purposes only. Always verify against the official NESA prescriptions document."
+    '</span>'
+    '<a href="mailto:precise.pedal-4n@icloud.com?subject=HSC%20Text%20Picker%20Feedback" '
+    'style="display:inline-block;padding:0.3rem 0.8rem;border-radius:5px;background-color:#2e3038;'
+    'color:white!important;text-decoration:none;font-size:0.78rem;font-weight:600;white-space:nowrap;'
+    'border:1px solid #3e4048;">SEND FEEDBACK / REPORT ISSUES</a>'
+    '</div>',
+    unsafe_allow_html=True,
 )
