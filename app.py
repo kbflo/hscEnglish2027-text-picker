@@ -8,6 +8,8 @@ import io
 from datetime import datetime
 from typing import Optional
 
+from docx import Document
+from docx.shared import Inches, Pt
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -328,13 +330,20 @@ html, body { overflow-x: hidden !important; }
     transition: background-color 0.15s, border-color 0.15s;
 }
 .fav-csv-btn:hover { background-color: #282a32 !important; border-color: #3e4048 !important; color: #d4d4d8 !important; }
+/* ── Start here label ── */
+.start-here {
+    text-align: right; color: #fbbf24; font-size: 1.05rem;
+    font-weight: 700; padding-top: 0.4rem; white-space: nowrap;
+    line-height: 1.2; letter-spacing: 0.01em;
+}
 /* ── All-combinations custom download link-button ── */
+.dl-row { display: flex; gap: 0.4rem; justify-content: flex-end; }
 .custom-dl-btn {
-    display: block; width: 100%; box-sizing: border-box;
-    text-align: center; text-decoration: none;
+    display: flex; align-items: center; justify-content: center;
+    box-sizing: border-box; text-align: center; text-decoration: none;
     padding: 0.38rem 0.6rem; border-radius: 6px;
     background-color: #1c1e24; color: #d4d4d8 !important;
-    border: 1px solid #2e3038; font-size: 0.76rem; line-height: 1.4;
+    border: 1px solid #2e3038; font-size: 0.88rem; line-height: 1.4;
     transition: background-color 0.15s, border-color 0.15s;
 }
 .custom-dl-btn:hover { background-color: #282a32 !important; border-color: #3e4048 !important; color: #f0f0f0 !important; }
@@ -612,6 +621,119 @@ def make_fav_csv(course_filter: str) -> str:
     return output.getvalue()
 
 
+def _docx_text_cell(cell, author: str, title: str):
+    """Fill a table cell: author bold + soft line break + title italic."""
+    para = cell.paragraphs[0]
+    r1 = para.add_run(author)
+    r1.bold = True
+    r1.font.size = Pt(9)
+    r1.add_break()
+    r2 = para.add_run(title)
+    r2.italic = True
+    r2.font.size = Pt(9)
+
+
+def _docx_table(doc, col_widths_in: list, headers: list, rows_data):
+    """Add a bordered table to doc. rows_data is a list of lists of (author, title) tuples or plain strings."""
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    # Header row
+    hdr = table.rows[0]
+    for i, h in enumerate(headers):
+        cell = hdr.cells[i]
+        cell.width = Inches(col_widths_in[i])
+        run = cell.paragraphs[0].add_run(h)
+        run.bold = True
+        run.font.size = Pt(9)
+    # Data rows
+    for row_vals in rows_data:
+        row = table.add_row()
+        for i, val in enumerate(row_vals):
+            cell = row.cells[i]
+            cell.width = Inches(col_widths_in[i])
+            if isinstance(val, tuple):  # (author, title)
+                _docx_text_cell(cell, val[0], val[1])
+            else:
+                run = cell.paragraphs[0].add_run(str(val))
+                run.font.size = Pt(9)
+
+
+def _docx_bytes(doc) -> bytes:
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def make_fav_docx(course_filter: str) -> bytes:
+    doc = Document()
+    doc.add_heading(f"HSC {course_filter} \u2013 Favourite Combinations", level=1)
+    if course_filter == "English Advanced":
+        headers = ["#", "Texts & Human Exp.", "TC Text A", "TC Text B", "Critical Study"]
+        col_w = [0.35, 1.55, 1.55, 1.55, 1.55]
+        rows = []
+        for n, fav in enumerate((f for f in st.session_state.favourites if f["course"] == course_filter), 1):
+            p, c, co = fav["pair"], fav["crit"], fav["common"]
+            rows.append([n, (co.author, co.title), (p.text_a.author, p.text_a.title),
+                         (p.text_b.author, p.text_b.title), (c.author, c.title)])
+    elif course_filter == "English Standard":
+        headers = ["#", "Texts & Human Exp.", "Lang., Identity & Culture", "Close Study"]
+        col_w = [0.35, 2.0, 2.0, 2.0]
+        rows = []
+        for n, fav in enumerate((f for f in st.session_state.favourites if f["course"] == course_filter), 1):
+            rows.append([n, (fav["common"].author, fav["common"].title),
+                         (fav["lic"].author, fav["lic"].title), (fav["close"].author, fav["close"].title)])
+    elif course_filter == "English EAL/D":
+        headers = ["#", "Texts & Human Exp.", "Lang., Identity & Culture", "Close Study of Text"]
+        col_w = [0.35, 2.0, 2.0, 2.0]
+        rows = []
+        for n, fav in enumerate((f for f in st.session_state.favourites if f["course"] == course_filter), 1):
+            rows.append([n, (fav["fa1"].author, fav["fa1"].title),
+                         (fav["fa2"].author, fav["fa2"].title), (fav["fa3"].author, fav["fa3"].title)])
+    else:
+        headers = ["#", "Elective", "Text 1", "Text 2", "Text 3"]
+        col_w = [0.35, 1.55, 1.55, 1.55, 1.55]
+        rows = []
+        for n, fav in enumerate((f for f in st.session_state.favourites if f["course"] == course_filter), 1):
+            e_idx, t_idxs, txts = fav["elective_idx"], fav["text_idxs"], EXT1_TEXTS[fav["elective_idx"]]
+            rows.append([n, EXT1_ELECTIVE_FULL_NAMES[e_idx],
+                         (txts[t_idxs[0]].author, txts[t_idxs[0]].title),
+                         (txts[t_idxs[1]].author, txts[t_idxs[1]].title),
+                         (txts[t_idxs[2]].author, txts[t_idxs[2]].title)])
+    _docx_table(doc, col_w, headers, rows)
+    return _docx_bytes(doc)
+
+
+def make_all_combos_docx(course: str) -> bytes:
+    doc = Document()
+    doc.add_heading(f"HSC {course} \u2013 All Valid Combinations", level=1)
+    if course == "English Advanced":
+        headers = ["#", "Texts & Human Exp.", "TC Text A", "TC Text B", "Critical Study"]
+        col_w = [0.35, 1.55, 1.55, 1.55, 1.55]
+        rows = [[i, (co.author, co.title), (p.text_a.author, p.text_a.title),
+                 (p.text_b.author, p.text_b.title), (c.author, c.title)]
+                for i, (p, c, co) in enumerate(generate_all_valid_combinations(), 1)]
+    elif course == "English Standard":
+        headers = ["#", "Texts & Human Exp.", "Lang., Identity & Culture", "Close Study"]
+        col_w = [0.35, 2.0, 2.0, 2.0]
+        rows = [[i, (co.author, co.title), (li.author, li.title), (cl.author, cl.title)]
+                for i, (co, li, cl) in enumerate(generate_all_valid_standard_combinations(), 1)]
+    elif course == "English EAL/D":
+        headers = ["#", "Texts & Human Exp.", "Lang., Identity & Culture", "Close Study of Text"]
+        col_w = [0.35, 2.0, 2.0, 2.0]
+        rows = [[i, (f1.author, f1.title), (f2.author, f2.title), (f3.author, f3.title)]
+                for i, (f1, f2, f3) in enumerate(generate_all_valid_eald_combinations(), 1)]
+    else:
+        headers = ["#", "Elective", "Text 1", "Text 2", "Text 3"]
+        col_w = [0.35, 1.55, 1.55, 1.55, 1.55]
+        rows = [[i, EXT1_ELECTIVE_FULL_NAMES[e_idx],
+                 (EXT1_TEXTS[e_idx][t1].author, EXT1_TEXTS[e_idx][t1].title),
+                 (EXT1_TEXTS[e_idx][t2].author, EXT1_TEXTS[e_idx][t2].title),
+                 (EXT1_TEXTS[e_idx][t3].author, EXT1_TEXTS[e_idx][t3].title)]
+                for i, (e_idx, t1, t2, t3) in enumerate(generate_all_valid_ext1_combos(), 1)]
+    _docx_table(doc, col_w, headers, rows)
+    return _docx_bytes(doc)
+
+
 def make_all_combos_csv(course: str) -> str:
     output = io.StringIO()
     writer = csv.writer(output)
@@ -738,7 +860,10 @@ course = st.session_state.last_course
 
 st.markdown('<div class="focus-area-header">📚 Create New Text Combination</div>', unsafe_allow_html=True)
 
-c_adv, c_std, c_eald, c_ext1, c_dl = st.columns([1, 1, 1, 1.2, 2])
+c_start, c_adv, c_std, c_eald, c_ext1 = st.columns([1.1, 1, 1, 1, 1.2])
+
+with c_start:
+    st.markdown('<div class="start-here">Click to start:</div>', unsafe_allow_html=True)
 
 with c_adv:
     if st.button("Advanced", use_container_width=True,
@@ -772,27 +897,32 @@ with c_ext1:
         reset_picker()
         st.rerun()
 
-with c_dl:
-    if course is not None:
-        if course == "English Advanced":
-            all_csv = make_all_combos_csv("English Advanced")
-            valid_count = len(generate_all_valid_combinations())
-        elif course == "English EAL/D":
-            all_csv = make_all_combos_csv("English EAL/D")
-            valid_count = len(generate_all_valid_eald_combinations())
-        elif course == "English Extension 1":
-            all_csv = make_all_combos_csv("English Extension 1")
-            valid_count = len(generate_all_valid_ext1_combos())
-        else:
-            all_csv = make_all_combos_csv("English Standard")
-            valid_count = len(generate_all_valid_standard_combinations())
-        csv_b64 = base64.b64encode(all_csv.encode()).decode()
-        fname = f"HSC_{course.replace(' ', '_')}_all_valid_combinations.csv"
-        st.markdown(
-            f'<a href="data:text/csv;base64,{csv_b64}" download="{fname}" class="custom-dl-btn">'
-            f'📥 Download all {valid_count} valid combinations for <strong>{course}</strong></a>',
-            unsafe_allow_html=True,
-        )
+if course is not None:
+    if course == "English Advanced":
+        all_csv = make_all_combos_csv("English Advanced")
+        valid_count = len(generate_all_valid_combinations())
+    elif course == "English EAL/D":
+        all_csv = make_all_combos_csv("English EAL/D")
+        valid_count = len(generate_all_valid_eald_combinations())
+    elif course == "English Extension 1":
+        all_csv = make_all_combos_csv("English Extension 1")
+        valid_count = len(generate_all_valid_ext1_combos())
+    else:
+        all_csv = make_all_combos_csv("English Standard")
+        valid_count = len(generate_all_valid_standard_combinations())
+    csv_b64 = base64.b64encode(all_csv.encode()).decode()
+    docx_data = make_all_combos_docx(course)
+    docx_b64 = base64.b64encode(docx_data).decode()
+    fname_base = f"HSC_{course.replace(' ', '_')}_all_valid_combinations"
+    st.markdown(
+        f'<div class="dl-row">'
+        f'<a href="data:text/csv;base64,{csv_b64}" download="{fname_base}.csv" class="custom-dl-btn">'
+        f'📥 Download all {valid_count} valid combinations for&nbsp;<strong>{course}</strong></a>'
+        f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{docx_b64}" download="{fname_base}.docx" class="custom-dl-btn" style="white-space:nowrap;">'
+        f'📄 Word</a>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 
@@ -1087,11 +1217,14 @@ else:
     # --- ADVANCED FAVOURITES ---
     if adv_favs:
         adv_csv = make_fav_csv("English Advanced")
+        adv_docx = make_fav_docx("English Advanced")
         adv_csv_b64 = base64.b64encode(adv_csv.encode()).decode()
-        adv_fname = f"HSC_Advanced_favourites_{datetime.now():%Y%m%d_%H%M}.csv"
+        adv_docx_b64 = base64.b64encode(adv_docx).decode()
+        adv_stem = f"HSC_Advanced_favourites_{datetime.now():%Y%m%d_%H%M}"
         st.markdown(
             f'<div class="fav-hdr-row"><span class="fav-course-heading">English Advanced</span>'
-            f'<a href="data:text/csv;base64,{adv_csv_b64}" download="{adv_fname}" class="fav-csv-btn">📥 CSV</a></div>',
+            f'<a href="data:text/csv;base64,{adv_csv_b64}" download="{adv_stem}.csv" class="fav-csv-btn">📥 CSV</a>'
+            f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{adv_docx_b64}" download="{adv_stem}.docx" class="fav-csv-btn">📄 Word</a></div>',
             unsafe_allow_html=True)
 
         rows_html = (
@@ -1117,11 +1250,14 @@ else:
     # --- STANDARD FAVOURITES ---
     if std_favs:
         std_csv = make_fav_csv("English Standard")
+        std_docx = make_fav_docx("English Standard")
         std_csv_b64 = base64.b64encode(std_csv.encode()).decode()
-        std_fname = f"HSC_Standard_favourites_{datetime.now():%Y%m%d_%H%M}.csv"
+        std_docx_b64 = base64.b64encode(std_docx).decode()
+        std_stem = f"HSC_Standard_favourites_{datetime.now():%Y%m%d_%H%M}"
         st.markdown(
             f'<div class="fav-hdr-row"><span class="fav-course-heading">English Standard</span>'
-            f'<a href="data:text/csv;base64,{std_csv_b64}" download="{std_fname}" class="fav-csv-btn">📥 CSV</a></div>',
+            f'<a href="data:text/csv;base64,{std_csv_b64}" download="{std_stem}.csv" class="fav-csv-btn">📥 CSV</a>'
+            f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{std_docx_b64}" download="{std_stem}.docx" class="fav-csv-btn">📄 Word</a></div>',
             unsafe_allow_html=True)
 
         rows_html = (
@@ -1146,11 +1282,14 @@ else:
     # --- EAL/D FAVOURITES ---
     if eald_favs:
         eald_csv = make_fav_csv("English EAL/D")
+        eald_docx = make_fav_docx("English EAL/D")
         eald_csv_b64 = base64.b64encode(eald_csv.encode()).decode()
-        eald_fname = f"HSC_EALD_favourites_{datetime.now():%Y%m%d_%H%M}.csv"
+        eald_docx_b64 = base64.b64encode(eald_docx).decode()
+        eald_stem = f"HSC_EALD_favourites_{datetime.now():%Y%m%d_%H%M}"
         st.markdown(
             f'<div class="fav-hdr-row"><span class="fav-course-heading">English EAL/D</span>'
-            f'<a href="data:text/csv;base64,{eald_csv_b64}" download="{eald_fname}" class="fav-csv-btn">📥 CSV</a></div>',
+            f'<a href="data:text/csv;base64,{eald_csv_b64}" download="{eald_stem}.csv" class="fav-csv-btn">📥 CSV</a>'
+            f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{eald_docx_b64}" download="{eald_stem}.docx" class="fav-csv-btn">📄 Word</a></div>',
             unsafe_allow_html=True)
 
         rows_html = (
@@ -1175,11 +1314,14 @@ else:
     # --- EXTENSION 1 FAVOURITES ---
     if ext1_favs:
         ext1_csv = make_fav_csv("English Extension 1")
+        ext1_docx = make_fav_docx("English Extension 1")
         ext1_csv_b64 = base64.b64encode(ext1_csv.encode()).decode()
-        ext1_fname = f"HSC_Extension1_favourites_{datetime.now():%Y%m%d_%H%M}.csv"
+        ext1_docx_b64 = base64.b64encode(ext1_docx).decode()
+        ext1_stem = f"HSC_Extension1_favourites_{datetime.now():%Y%m%d_%H%M}"
         st.markdown(
             f'<div class="fav-hdr-row"><span class="fav-course-heading">English Extension 1</span>'
-            f'<a href="data:text/csv;base64,{ext1_csv_b64}" download="{ext1_fname}" class="fav-csv-btn">📥 CSV</a></div>',
+            f'<a href="data:text/csv;base64,{ext1_csv_b64}" download="{ext1_stem}.csv" class="fav-csv-btn">📥 CSV</a>'
+            f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{ext1_docx_b64}" download="{ext1_stem}.docx" class="fav-csv-btn">📄 Word</a></div>',
             unsafe_allow_html=True)
 
         rows_html = (
