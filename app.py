@@ -1361,7 +1361,7 @@ st.markdown(
     '<a href="mailto:precise.pedal-4n@icloud.com?subject=HSC%20Text%20Picker%20Feedback" '
     'style="display:inline-block;padding:0.3rem 0.8rem;border-radius:5px;background-color:#2e3038;'
     'color:white!important;text-decoration:none;font-size:0.78rem;font-weight:600;white-space:nowrap;'
-    'border:1px solid #3e4048;">SEND FEEDBACK / REPORT ISSUES (email)</a>'
+    'border:1px solid #3e4048;">SEND FEEDBACK / REPORT ISSUES</a>'
     '</div>',
     unsafe_allow_html=True,
 )
