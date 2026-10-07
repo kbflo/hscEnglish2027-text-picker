@@ -7,6 +7,13 @@ __pycache__/
 # macOS
 .DS_Store
 
+# Credentials — never commit. Added 2026-08-10 during the secrets audit.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
 # Claude Code memory
 .claude/
 
@@ -22,3 +29,6 @@ uv.lock
 *.jpg
 *.PNG
 *.png
+
+# Local uv setup; the deployed app installs from requirements.txt.
+pyproject.toml
